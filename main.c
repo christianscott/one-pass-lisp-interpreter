@@ -37,6 +37,7 @@ enum rt_value_kind
 {
     rt_boolean,
     rt_number,
+    rt_nil,
 };
 
 // runtime value
@@ -48,6 +49,23 @@ struct rt_value
         bool boolean;
     };
 };
+
+void print_rt_value(struct rt_value val)
+{
+    switch (val.kind)
+    {
+    case rt_number:
+        fprintf(stderr, "%f", val.num);
+        break;
+    case rt_boolean:
+        fprintf(stderr, "%s", val.boolean ? "true" : "false");
+        break;
+    case rt_nil:
+        fprintf(stderr, "nil");
+        break;
+    }
+}
+
 
 struct hm_entry
 {
@@ -380,6 +398,18 @@ struct rt_value evaluate_expr(struct scope *s)
             expr += 3;
             return evaluate_let(s);
         }
+        else if (STRNCMP(expr, "print"))
+        {
+            expr += 5;
+            struct rt_value val = evaluate_expr(s);
+
+            print_rt_value(val);
+            fprintf(stderr, "\n");
+
+            return (struct rt_value){.kind = rt_nil};
+        }
+
+        UNREACHABLE("expected the name of a callable\n");
     }
 
     if (*expr == '-' || is_num(*expr))
@@ -424,16 +454,12 @@ struct rt_value evaluate(char *source)
 
 int main()
 {
-    char *source = "(eq 10 10)";
+    char *source = "(let a 1 b 1 (print (eq a b)))";
     struct rt_value res = evaluate(source);
-    switch (res.kind)
-    {
-    case rt_number:
-        fprintf(stderr, "%s => %f\n", source, res.num);
-        break;
-    case rt_boolean:
-        fprintf(stderr, "%s => %s\n", source, res.boolean ? "true" : "false");
-        break;
-    }
+
+    fprintf(stderr, "%s => ", source);
+    print_rt_value(res);
+    fprintf(stderr, "\n");
+
     return 0;
 }
