@@ -312,7 +312,36 @@ struct rt_value evaluate_let(struct scope *parent)
     return ret;
 }
 
-#define STRNCMP(s1, s2) strncmp(s1, s2, sizeof(s2) - 1)
+struct rt_value evaluate_eq(struct scope *parent)
+{
+    struct scope s;
+    scope_init(&s, parent);
+
+    struct rt_value a = evaluate_expr(&s);
+    struct rt_value b = evaluate_expr(&s);
+
+    EXPECT((a.kind == b.kind), "expected a and b to have the same kind (got '%d' and '%d')\n", a.kind, b.kind);
+
+    bool boolean;
+    switch (a.kind)
+    {
+    case rt_number:
+        boolean = a.num == b.num;
+        break;
+    case rt_boolean:
+        boolean = a.boolean == b.boolean;
+        break;
+    default:
+        UNREACHABLE("unknown runtime value of kind '%d'\n", a.kind);
+    }
+
+    EXPECT((*(expr) == ')'), "expected ')': %s\n", expr);
+    expr++;
+
+    return (struct rt_value){.kind = rt_boolean, .boolean = boolean};
+}
+
+#define STRNCMP(s1, s2) strncmp(s1, s2, sizeof(s2) - 1) == 0
 
 struct rt_value evaluate_expr(struct scope *s)
 {
@@ -326,22 +355,27 @@ struct rt_value evaluate_expr(struct scope *s)
     if (*expr == '(')
     {
         expr++;
-        if (STRNCMP(expr, "add") == 0)
+        if (STRNCMP(expr, "add"))
         {
             expr += 3;
             return evaluate_op(s, op_add);
         }
-        else if (STRNCMP(expr, "mult") == 0)
+        else if (STRNCMP(expr, "mult"))
         {
             expr += 4;
             return evaluate_op(s, op_mult);
         }
-        else if (STRNCMP(expr, "div") == 0)
+        else if (STRNCMP(expr, "div"))
         {
             expr += 3;
             return evaluate_op(s, op_div);
         }
-        else if (STRNCMP(expr, "let") == 0)
+        else if (STRNCMP(expr, "eq"))
+        {
+            expr += 2;
+            return evaluate_eq(s);
+        }
+        else if (STRNCMP(expr, "let"))
         {
             expr += 3;
             return evaluate_let(s);
@@ -390,7 +424,7 @@ struct rt_value evaluate(char *source)
 
 int main()
 {
-    char *source = "(div (add 1 1) (mult 1 1))";
+    char *source = "(eq 10 10)";
     struct rt_value res = evaluate(source);
     switch (res.kind)
     {
@@ -398,7 +432,7 @@ int main()
         fprintf(stderr, "%s => %f\n", source, res.num);
         break;
     case rt_boolean:
-        // fprintf(stderr, "%s => %f\n", source, res.num);
+        fprintf(stderr, "%s => %s\n", source, res.boolean ? "true" : "false");
         break;
     }
     return 0;
