@@ -1,21 +1,21 @@
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 
-#define EXPECT(cond, ...)             \
-    if (!cond)                        \
-    {                                 \
-        fprintf(stderr, __VA_ARGS__); \
-        exit(1);                      \
+#define EXPECT(cond, ...)                                                                                              \
+    if (!cond)                                                                                                         \
+    {                                                                                                                  \
+        fprintf(stderr, __VA_ARGS__);                                                                                  \
+        exit(1);                                                                                                       \
     }
 
-#define UNREACHABLE(...)                              \
-    do                                                \
-    {                                                 \
-        fprintf(stderr, "unreachable: " __VA_ARGS__); \
-        exit(1);                                      \
+#define UNREACHABLE(...)                                                                                               \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        fprintf(stderr, "unreachable: " __VA_ARGS__);                                                                  \
+        exit(1);                                                                                                       \
     } while (0)
 
 bool is_num(char c)
@@ -35,18 +35,18 @@ bool is_alphanumeric(char c)
 
 enum rt_value_kind
 {
-  rt_boolean,
-  rt_number,
+    rt_boolean,
+    rt_number,
 };
 
 // runtime value
 struct rt_value
 {
-  enum rt_value_kind kind;
-  union {
-    double num;
-    bool boolean;
-  };
+    enum rt_value_kind kind;
+    union {
+        double num;
+        bool boolean;
+    };
 };
 
 struct hm_entry
@@ -82,7 +82,7 @@ void hm_ensure(struct hm *hm, size_t min_cap)
     hm->entries = realloc(hm->entries, sizeof(struct hm_entry) * hm->cap);
     for (size_t i = prev_cap; i < hm->cap; i++)
     {
-        hm->entries[i] = (const struct hm_entry) {0};
+        hm->entries[i] = (const struct hm_entry){0};
     }
 }
 
@@ -223,48 +223,48 @@ double evaluate_n_ary_op(struct scope *s, enum op op)
 
 bool is_at_end()
 {
-  return (*expr == '\0') ? 1 : 0;
+    return (*expr == '\0') ? 1 : 0;
 }
 
 double evaluate_binary_op(struct scope *s, enum op op)
 {
-  EXPECT((!is_at_end() && *expr != ')'), "not enough arguments for binary op\n");
-  struct rt_value a = evaluate_expr(s);
-  EXPECT((a.kind == rt_number), "expected a number\n");
-  double n = a.num;
+    EXPECT((!is_at_end() && *expr != ')'), "not enough arguments for binary op\n");
+    struct rt_value a = evaluate_expr(s);
+    EXPECT((a.kind == rt_number), "expected a number\n");
+    double n = a.num;
 
-  EXPECT((!is_at_end() && *expr != ')'), "not enough arguments for binary op\n");
-  struct rt_value b = evaluate_expr(s);
-  EXPECT((a.kind == rt_number), "expected a number\n");
-  double m = b.num;
+    EXPECT((!is_at_end() && *expr != ')'), "not enough arguments for binary op\n");
+    struct rt_value b = evaluate_expr(s);
+    EXPECT((a.kind == rt_number), "expected a number\n");
+    double m = b.num;
 
-  EXPECT((*expr == ')'), "too many arguments for binary op\n");
+    EXPECT((*expr == ')'), "too many arguments for binary op\n");
 
-  switch (op)
-  {
+    switch (op)
+    {
     case op_div:
-      return n / m;
+        return n / m;
     default:
-      UNREACHABLE("not a binary op: '%d'\n", op);
-  }
+        UNREACHABLE("not a binary op: '%d'\n", op);
+    }
 }
 
 struct rt_value evaluate_op(struct scope *s, enum op op)
 {
-  double num;
-  switch (op)
-  {
-  case op_add:
-  case op_mult:
-    num = evaluate_n_ary_op(s, op);
-    break;
-  case op_div:
-    num = evaluate_binary_op(s, op);
-    break;
-  default:
-      UNREACHABLE("tried to apply unknown op '%d'\n", op);
-  }
-  return (struct rt_value){ .kind = rt_number, .num = num };
+    double num;
+    switch (op)
+    {
+    case op_add:
+    case op_mult:
+        num = evaluate_n_ary_op(s, op);
+        break;
+    case op_div:
+        num = evaluate_binary_op(s, op);
+        break;
+    default:
+        UNREACHABLE("tried to apply unknown op '%d'\n", op);
+    }
+    return (struct rt_value){.kind = rt_number, .num = num};
 }
 
 struct rt_value evaluate_let(struct scope *parent)
@@ -320,7 +320,7 @@ struct rt_value evaluate_expr(struct scope *s)
 
     if (*expr == '\0')
     {
-      UNREACHABLE("tried to evaluate an empty expression\n");
+        UNREACHABLE("tried to evaluate an empty expression\n");
     }
 
     if (*expr == '(')
@@ -338,8 +338,8 @@ struct rt_value evaluate_expr(struct scope *s)
         }
         else if (STRNCMP(expr, "div") == 0)
         {
-          expr += 3;
-          return evaluate_op(s, op_div);
+            expr += 3;
+            return evaluate_op(s, op_div);
         }
         else if (STRNCMP(expr, "let") == 0)
         {
@@ -353,7 +353,7 @@ struct rt_value evaluate_expr(struct scope *s)
         char *end;
         double num = (double)strtol(expr, &end, 10);
         expr += (end - expr);
-        return (struct rt_value){ .kind = rt_number, .num = num };
+        return (struct rt_value){.kind = rt_number, .num = num};
     }
 
     if (is_alpha(*expr))
@@ -390,16 +390,16 @@ struct rt_value evaluate(char *source)
 
 int main()
 {
-  char *source = "(div (add 1 1) (mult 1 1))";
-  struct rt_value res = evaluate(source);
-  switch (res.kind)
-  {
+    char *source = "(div (add 1 1) (mult 1 1))";
+    struct rt_value res = evaluate(source);
+    switch (res.kind)
+    {
     case rt_number:
-      fprintf(stderr, "%s => %f\n", source, res.num);
-      break;
+        fprintf(stderr, "%s => %f\n", source, res.num);
+        break;
     case rt_boolean:
-      // fprintf(stderr, "%s => %f\n", source, res.num);
-      break;
-  }
-  return 0;
+        // fprintf(stderr, "%s => %f\n", source, res.num);
+        break;
+    }
+    return 0;
 }

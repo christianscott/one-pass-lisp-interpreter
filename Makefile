@@ -6,3 +6,7 @@ build:
 
 run: build
 	./bin/lisp
+
+.PHONY: format
+format:
+	clang-format -i -style=Microsoft main.c
