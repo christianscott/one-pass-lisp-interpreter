@@ -66,7 +66,6 @@ void print_rt_value(struct rt_value val)
     }
 }
 
-
 struct hm_entry
 {
     bool in_use;
