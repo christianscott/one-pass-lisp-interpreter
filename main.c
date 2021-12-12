@@ -33,11 +33,27 @@ bool is_alphanumeric(char c)
     return is_alpha(c) || is_num(c);
 }
 
+enum rt_value_kind
+{
+  rt_boolean,
+  rt_number,
+};
+
+// runtime value
+struct rt_value
+{
+  enum rt_value_kind kind;
+  union {
+    double num;
+    bool boolean;
+  };
+};
+
 struct hm_entry
 {
     bool in_use;
     char *key;
-    double val;
+    struct rt_value val;
 };
 
 struct hm
@@ -49,7 +65,7 @@ struct hm
 
 void hm_init(struct hm *hm)
 {
-    hm->cap = 2;
+    hm->cap = 16;
     hm->size = 0;
     hm->entries = calloc(hm->cap, sizeof(struct hm_entry));
 }
@@ -70,7 +86,7 @@ void hm_ensure(struct hm *hm, size_t min_cap)
     }
 }
 
-void hm_add(struct hm *hm, char *key, double val)
+void hm_add(struct hm *hm, char *key, struct rt_value val)
 {
     hm_ensure(hm, ++hm->size);
 
@@ -93,7 +109,7 @@ void hm_add(struct hm *hm, char *key, double val)
     UNREACHABLE("could not insert key '%s' into hashmap\n", key);
 }
 
-bool hm_get(struct hm *hm, char *key, double *result)
+bool hm_get(struct hm *hm, char *key, struct rt_value *result)
 {
     for (size_t i = 0; i < hm->cap; i++)
     {
@@ -115,8 +131,8 @@ bool hm_get(struct hm *hm, char *key, double *result)
 
 bool hm_has(struct hm *hm, char *key)
 {
-    double dummy;
-    return hm_get(hm, key, &dummy);
+    struct rt_value unused;
+    return hm_get(hm, key, &unused);
 }
 
 struct scope
@@ -131,7 +147,7 @@ void scope_init(struct scope *scope, struct scope *parent)
     hm_init(&scope->bindings);
 }
 
-bool scope_get_value(struct scope *s, char *name, double *val)
+bool scope_get_value(struct scope *s, char *name, struct rt_value *val)
 {
     if (hm_get(&s->bindings, name, val))
     {
@@ -163,7 +179,7 @@ void skip_whitespace()
     }
 }
 
-double evaluate_expr(struct scope *s);
+struct rt_value evaluate_expr(struct scope *s);
 
 double evaluate_n_ary_op(struct scope *s, enum op op)
 {
@@ -183,14 +199,16 @@ double evaluate_n_ary_op(struct scope *s, enum op op)
     while (*expr != ')')
     {
         skip_whitespace();
-        double v = evaluate_expr(s);
+        struct rt_value v = evaluate_expr(s);
+        EXPECT((v.kind == rt_number), "expected a number\n");
+        double num = v.num;
         switch (op)
         {
         case op_mult:
-            res = res * v;
+            res = res * num;
             break;
         case op_add:
-            res = res + v;
+            res = res + num;
             break;
         default:
             UNREACHABLE("tried to apply unknown n-ary op '%d'\n", op);
@@ -203,7 +221,7 @@ double evaluate_n_ary_op(struct scope *s, enum op op)
     return res;
 }
 
-double is_at_end()
+bool is_at_end()
 {
   return (*expr == '\0') ? 1 : 0;
 }
@@ -211,37 +229,45 @@ double is_at_end()
 double evaluate_binary_op(struct scope *s, enum op op)
 {
   EXPECT((!is_at_end() && *expr != ')'), "not enough arguments for binary op\n");
-  double a = evaluate_expr(s);
+  struct rt_value a = evaluate_expr(s);
+  EXPECT((a.kind == rt_number), "expected a number\n");
+  double n = a.num;
 
   EXPECT((!is_at_end() && *expr != ')'), "not enough arguments for binary op\n");
-  double b = evaluate_expr(s);
+  struct rt_value b = evaluate_expr(s);
+  EXPECT((a.kind == rt_number), "expected a number\n");
+  double m = b.num;
 
   EXPECT((*expr == ')'), "too many arguments for binary op\n");
 
   switch (op)
   {
     case op_div:
-      return a / b;
+      return n / m;
     default:
       UNREACHABLE("not a binary op: '%d'\n", op);
   }
 }
 
-double evaluate_op(struct scope *s, enum op op)
+struct rt_value evaluate_op(struct scope *s, enum op op)
 {
+  double num;
   switch (op)
   {
   case op_add:
   case op_mult:
-    return evaluate_n_ary_op(s, op);
+    num = evaluate_n_ary_op(s, op);
+    break;
   case op_div:
-    return evaluate_binary_op(s, op);
+    num = evaluate_binary_op(s, op);
+    break;
   default:
       UNREACHABLE("tried to apply unknown op '%d'\n", op);
   }
+  return (struct rt_value){ .kind = rt_number, .num = num };
 }
 
-double evaluate_let(struct scope *parent)
+struct rt_value evaluate_let(struct scope *parent)
 {
     struct scope s;
     scope_init(&s, parent);
@@ -274,12 +300,11 @@ double evaluate_let(struct scope *parent)
         name[len] = '\0';
         expr = lookahead;
 
-        double val = evaluate_expr(&s);
-
+        struct rt_value val = evaluate_expr(&s);
         hm_add(&s.bindings, name, val);
     }
 
-    double ret = evaluate_expr(&s);
+    struct rt_value ret = evaluate_expr(&s);
 
     EXPECT((*(expr) == ')'), "expected ')': %s\n", expr);
     expr++;
@@ -287,10 +312,9 @@ double evaluate_let(struct scope *parent)
     return ret;
 }
 
-#define STRNCMP(s1, s2) \
-  strncmp(s1, s2, sizeof(s2) - 1)
+#define STRNCMP(s1, s2) strncmp(s1, s2, sizeof(s2) - 1)
 
-double evaluate_expr(struct scope *s)
+struct rt_value evaluate_expr(struct scope *s)
 {
     skip_whitespace();
 
@@ -327,9 +351,9 @@ double evaluate_expr(struct scope *s)
     if (*expr == '-' || is_num(*expr))
     {
         char *end;
-        double value = (double)strtol(expr, &end, 10);
+        double num = (double)strtol(expr, &end, 10);
         expr += (end - expr);
-        return value;
+        return (struct rt_value){ .kind = rt_number, .num = num };
     }
 
     if (is_alpha(*expr))
@@ -347,7 +371,7 @@ double evaluate_expr(struct scope *s)
         name[len] = '\0';
         expr = lookahead;
 
-        double val;
+        struct rt_value val;
         EXPECT(scope_get_value(s, name, &val), "unbound reference: %s\n", name);
 
         return val;
@@ -356,7 +380,7 @@ double evaluate_expr(struct scope *s)
     UNREACHABLE("unexpected char '%c'\n", *expr);
 }
 
-double evaluate(char *source)
+struct rt_value evaluate(char *source)
 {
     struct scope s;
     scope_init(&s, NULL);
@@ -367,7 +391,15 @@ double evaluate(char *source)
 int main()
 {
   char *source = "(div (add 1 1) (mult 1 1))";
-  double res = evaluate(source);
-  fprintf(stderr, "%s => %f\n", source, res);
+  struct rt_value res = evaluate(source);
+  switch (res.kind)
+  {
+    case rt_number:
+      fprintf(stderr, "%s => %f\n", source, res.num);
+      break;
+    case rt_boolean:
+      // fprintf(stderr, "%s => %f\n", source, res.num);
+      break;
+  }
   return 0;
 }
